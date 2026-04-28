@@ -89,7 +89,7 @@ class PaymentFraudFeatureExtractor:
         for merchant_id, group in self._merchant_txns:
             n = len(group)
             refunded = (group["status"] == "refunded").sum()
-            captured = (group["status"] == "captured").sum()
+            (group["status"] == "captured").sum()
             refund_val = group.loc[group["status"] == "refunded", "amount"].sum()
             captured_val = group.loc[group["status"] == "captured", "amount"].sum()
 

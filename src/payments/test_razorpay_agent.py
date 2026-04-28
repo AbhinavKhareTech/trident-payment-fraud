@@ -200,6 +200,6 @@ async def test_detect_merchant_ring_delegates_to_bgi(razorpay_mock):
 @pytest.mark.asyncio
 async def test_search_is_read_only(razorpay_mock):
     agent = RazorpayFraudAgent(razorpay_mock, MockBGIAllow())
-    result = await agent.search("list transactions")
+    await agent.search("list transactions")
     # list_payments called directly, no BGI gate
     assert any(c[0] == "list_payments" for c in razorpay_mock.calls)

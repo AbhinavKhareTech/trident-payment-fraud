@@ -9,6 +9,7 @@ it is the pure-Python scoring engine that the server delegates to.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -171,7 +172,6 @@ class PaymentRiskEngine:
         prior_to_merch = [t for t in payer_txns if t.get("merchant_id") == merchant_id and t.get("payment_id") != payment_id]
         target_txn = next((t for t in payer_txns if t.get("payment_id") == payment_id), None)
         # Device chain from payers CSV
-        payer_row = {}
         if b._builder if hasattr(b, "_builder") else True:
             pass  # engine holds builder directly
         device_chain = []
@@ -278,7 +278,7 @@ def _merchant_score(merchant_id, txns) -> dict:
         return {"score": 0.0, "features": features}
 
     refunded = sum(1 for t in txns if t.get("status") == "refunded")
-    captured = sum(1 for t in txns if t.get("status") == "captured")
+    sum(1 for t in txns if t.get("status") == "captured")
     refund_r = refunded / len(txns)
     captured_val = sum(t["amount"] for t in txns if t.get("status") == "captured")
     refund_val = sum(t["amount"] for t in txns if t.get("status") == "refunded")
@@ -341,10 +341,8 @@ def _graph_score(b, merchant_id, payer_id) -> dict:
         signals.append(f"SHARED_BANK_ACCOUNT: merchant {merchant_id} shares bank with {len(bank_peers)} merchant(s): {bank_peers[:3]}")
     # Device sharing
     payer_dev = None
-    try:
+    with contextlib.suppress(IndexError, KeyError):
         payer_dev = b.data.payers[b.data.payers["payer_id"] == payer_id]["device_id"].iloc[0]
-    except (IndexError, KeyError):
-        pass
     if payer_dev:
         co_payers = b.device_payers.get(payer_dev, set()) - {payer_id}
         if len(co_payers) >= 2:
