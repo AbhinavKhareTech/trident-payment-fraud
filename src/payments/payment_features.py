@@ -46,8 +46,8 @@ class PaymentFraudFeatureExtractor:
             latest = group["created_at"].max()
 
             # Velocity windows (count in last N hours)
-            def velocity(hours: int) -> int:
-                cutoff = latest - pd.Timedelta(hours=hours)
+            def velocity(hours: int, group=group, latest=latest) -> int:
+                """Velocity count in last N hours - closure fix"""                cutoff = latest - pd.Timedelta(hours=hours)
                 return int((group["created_at"] >= cutoff).sum())
 
             amounts = group["amount"].values
