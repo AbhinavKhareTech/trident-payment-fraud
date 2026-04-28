@@ -206,7 +206,7 @@ Add both servers to `~/Library/Application Support/Claude/claude_desktop_config.
 
 ## Related
 
-[trident-consumption-graph](https://github.com/AbhinavKhareTech/trident-consumption-graph) — BGI Trident applied to Swiggy's food, instamart, and dineout domains. Autonomous multi-agent ordering with cross-domain graph signals.
+[trident-consumption-graph](https://github.com/AbhinavKhareTech/trident-consumption-graph) - BGI Trident applied to Swiggy's food, instamart, and dineout domains. Autonomous multi-agent ordering with cross-domain graph signals.
 
 ---
 
