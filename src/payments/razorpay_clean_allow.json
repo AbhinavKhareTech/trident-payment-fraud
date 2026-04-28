@@ -1,0 +1,24 @@
+{
+  "scenario_id": "razorpay_clean_allow",
+  "title": "ALLOW: Clean Transaction (Precision Test)",
+  "description": "Agent captures a payment from a clean merchant with no ring affiliations. BGI Trident returns ALLOW, agent proceeds to Razorpay.",
+  "agent_prompt": "Capture payment pay_DEMO_002 for INR 1,499 from payer pay_00300",
+  "expected_flow": [
+    "Agent calls BGI assess_payment_risk(merchant=mrc_00050, payer=pay_00300, amount=1499)",
+    "BGI Prong 1: No velocity flags",
+    "BGI Prong 2: No shared bank, no ring partners",
+    "BGI Prong 3: Ensemble score=0.158 < REVIEW threshold 0.30",
+    "Agent receives ALLOW decision",
+    "Agent calls Razorpay capture_payment",
+    "Payment captured successfully"
+  ],
+  "expected_decision": "ALLOW",
+  "expected_score_range": [0.0, 0.30],
+  "fraud_ring": null,
+  "params": {
+    "merchant_id": "mrc_00050",
+    "payer_id": "pay_00300",
+    "amount": 1499.0,
+    "method": "card"
+  }
+}
