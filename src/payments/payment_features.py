@@ -48,7 +48,7 @@ class PaymentFraudFeatureExtractor:
             # Velocity windows (count in last N hours)
             def velocity(hours: int, group=group, latest=latest) -> int:
                 """Velocity count in last N hours - closure fix"""
-                cutoff = latest - pd.Timedelta(hours=hours)
+                latest - pd.Timedelta(hours=hours)
 
             amounts = group["amount"].values
             failed = (group["status"] == "failed").sum()
