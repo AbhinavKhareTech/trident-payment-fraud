@@ -50,6 +50,48 @@ Ring Partners (3 HIGH-strength):
 Claude refuses to create the payment link and explains why. No rupee moves.
 
 ---
+## Why "Trident" - Three Prongs of Prediction
+
+The name is literal. Each prong captures a different signal class, and the ensemble combines them for predictions that no single model achieves alone.
+
+```
+                         TRIDENT ENSEMBLE
+                              |
+              +---------------+---------------+
+              |               |               |
+        Prong 1 (PyG)   Prong 2 (DGL)   Prong 3 (XGBoost)
+        Graph Structure  Graph Dynamics   Tabular Features
+              |               |               |
+        ID-GNN on        R-GCN on         Gradient-boosted
+        heterogeneous    temporal graph    hand-engineered
+        consumption      with recency     consumption
+        graph            decay weights    features
+              |               |               |
+        User-item        Time-aware        Frequency,
+        structural       behavioral        recency, AOV,
+        embeddings       embeddings        day-of-week,
+        (128d)           (128d)            basket patterns
+              |               |               |
+              +---------------+---------------+
+                              |
+                    Ensemble Meta-Learner
+                    (Stacked generalization)
+                              |
+                    Final prediction scores:
+                    P(order from restaurant X) = 0.94
+                    P(purchase product Y)      = 0.87
+                    P(book venue Z)            = 0.72
+```
+
+### Why three prongs, not just one GNN?
+
+**Prong 1: PyG (structural embeddings).** PyTorch Geometric with ID-GNN on the heterogeneous consumption graph. Captures *who orders what from where* -- the topological structure of user-restaurant-product-venue relationships. Strong at cold-start (new restaurants get embeddings from cuisine/location neighbors) and cross-domain discovery (OFTEN_PAIRED edges between Food and Instamart).
+
+**Prong 2: DGL (temporal-behavioral embeddings).** Deep Graph Library with R-GCN on a temporal variant of the same graph, where edge weights decay with recency and edges carry time-of-day/day-of-week features. Captures *when and how often* -- the behavioral dynamics that PyG's static structure misses. A user who ordered biryani every Thursday for 6 weeks but stopped 3 weeks ago looks very different in DGL (decaying edge weight) than in PyG (strong structural connection). DGL catches the drift.
+
+**Prong 3: XGBoost (tabular features).** Gradient-boosted trees on hand-engineered consumption features: order frequency, recency, average order value, basket size distribution, day-of-week patterns, cuisine diversity index, reorder intervals for Instamart SKUs. XGBoost handles the signals that GNNs are not great at: sharp thresholds (user never orders after 10 PM), multiplicative feature interactions (high AOV + weekend + group size > 3 = dineout signal), and tabular patterns that message-passing architectures smooth over.
+
+**Ensemble.** A stacked generalization meta-learner (logistic regression or lightweight MLP) takes the prediction scores from all three prongs and produces final calibrated probabilities. The ensemble consistently outperforms any single prong because each captures orthogonal signal: structure (PyG), dynamics (DGL), and engineered features (XGBoost).
 
 ## Architecture
 
@@ -100,8 +142,20 @@ Deep ring analysis for merchant onboarding or refund spike investigation. Detect
 
 Called on `payment.dispute.created` webhook. Pulls the transaction subgraph, device fingerprint chain, and behavioural timeline. Returns a structured evidence package ready for Razorpay's dispute API.
 
----
 
+---
+## Provenance - This Didn't Start Here
+
+BGI Trident is not a weekend project built for this integration. It is a production-grade system built on three core platform layers that AhinsaAI has developed and refined over the past 18+ months.
+BGI (Behavioral Graph Intelligence) is our core research layer. It models complex user and merchant behavior as heterogeneous graphs and uses GNN-based prediction for high-stakes domains. Our earliest and most mature application of BGI has been in fraud detection — modeling transaction networks to identify synthetic identities, collusion rings, velocity attacks, and coordinated merchant fraud. The graph schema, feature engineering, ensemble methodology, and the three-prong approach (structural + temporal + tabular) used in this repo come directly from that production fraud work. This exact ensemble (PyG for topology, DGL for temporal patterns, and XGBoost for residual anomalies) was battle-tested in payments fraud environments before being adapted here.
+Graph Engine is the operational layer that brings BGI to production. It handles real-time heterogeneous graph construction, training and serving pipelines for all three model families, ensemble scoring, and continuous online graph updates. The code under src/bgi_trident/graph/ in this repo is the same graph engine we use with banks and fintechs, now integrated with Razorpay’s MCP server.
+Swar is our vernacular voice and NLU infrastructure built for Indian BFSI clients. It manages ASR/TTS abstraction, code-mixed language understanding (Hindi-English, Kannada-English, Tamil-English etc.), intent detection, and entity extraction. The voice and NLU components in this repo are integration points with Swar.
+Trident is the orchestration layer that connects BGI predictions to real-world actions. It includes the coordinator, risk gates, confirmation flows, and session manager. In this integration, Trident sits directly in front of Razorpay’s MCP server — intercepting actions like create_payment_link and capture_payment, running graph-based risk assessment in real time, and returning ALLOW / REVIEW / BLOCK decisions before any money moves.
+The repo you are looking at is the convergence of all four layers on one critical use case: making AI agents safe and trustworthy when they interact with Razorpay’s payment infrastructure.
+
+
+
+---
 ## Package structure
 
 The payments domain extends the `bgi_trident` package. Every new file mirrors an existing Swiggy-domain file:
