@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
 
 from bgi_trident.mcp.protocol import MCPServer, MCPToolResult
 
@@ -29,10 +28,10 @@ class PaymentSession:
     """Session state for a payment risk assessment flow."""
 
     session_id: str
-    pending_payment_id:  str | None = None
+    pending_payment_id: str | None = None
     pending_merchant_id: str | None = None
-    pending_payer_id:    str | None = None
-    pending_amount:      float      = 0.0
+    pending_payer_id: str | None = None
+    pending_amount: float = 0.0
 
     # Audit log: every BGI assessment in this session
     audit_log: list[dict] = field(default_factory=list)
@@ -45,13 +44,13 @@ class PaymentSession:
 class RiskExecutionResult:
     """Result from a risk-gated payment operation."""
 
-    operation:           str         # "capture_payment", "create_payment_link", etc.
-    decision:            str         # ALLOW / REVIEW / BLOCK
-    ensemble_score:      float
-    razorpay_result:     MCPToolResult | None
-    bgi_assessment:      dict
-    blocked:             bool
-    summary:             str
+    operation: str  # "capture_payment", "create_payment_link", etc.
+    decision: str  # ALLOW / REVIEW / BLOCK
+    ensemble_score: float
+    razorpay_result: MCPToolResult | None
+    bgi_assessment: dict
+    blocked: bool
+    summary: str
 
 
 class PaymentRiskCoordinator:
@@ -64,10 +63,10 @@ class PaymentRiskCoordinator:
     def __init__(
         self,
         razorpay_server: MCPServer,
-        bgi_server:      MCPServer,
+        bgi_server: MCPServer,
     ) -> None:
         self._razorpay = razorpay_server
-        self._bgi      = bgi_server
+        self._bgi = bgi_server
         self._session: PaymentSession | None = None
 
     async def start_session(self, session_id: str) -> PaymentSession:
@@ -80,12 +79,13 @@ class PaymentRiskCoordinator:
     async def create_payment_link(
         self,
         merchant_id: str,
-        payer_id:    str,
-        amount:      float,
+        payer_id: str,
+        amount: float,
         description: str = "",
     ) -> RiskExecutionResult:
         """Create a Razorpay payment link -- BGI-gated."""
         from bgi_trident.agents.razorpay import RazorpayFraudAgent
+
         agent = RazorpayFraudAgent(self._razorpay, self._bgi)
         result = await agent.create_payment_link(
             merchant_id=merchant_id,
@@ -94,38 +94,37 @@ class PaymentRiskCoordinator:
             description=description,
         )
 
-        bgi_data  = result.data.get("bgi_decision", {})
-        decision  = bgi_data.get("decision", "ALLOW" if result.success else "BLOCK")
-        score     = bgi_data.get("ensemble_score", 0.0)
-        blocked   = not result.success and bool(bgi_data)
+        bgi_data = result.data.get("bgi_decision", {})
+        decision = bgi_data.get("decision", "ALLOW" if result.success else "BLOCK")
+        score = bgi_data.get("ensemble_score", 0.0)
+        blocked = not result.success and bool(bgi_data)
 
         self._log_audit("create_payment_link", merchant_id, payer_id, amount, bgi_data)
 
         return RiskExecutionResult(
-            operation       = "create_payment_link",
-            decision        = decision,
-            ensemble_score  = score,
-            razorpay_result = result if result.success else None,
-            bgi_assessment  = bgi_data,
-            blocked         = blocked,
-            summary         = (
-                f"BLOCKED by BGI Trident (score={score:.3f})"
-                if blocked else
-                f"Payment link created (BGI: {decision}, score={score:.3f})"
+            operation="create_payment_link",
+            decision=decision,
+            ensemble_score=score,
+            razorpay_result=result if result.success else None,
+            bgi_assessment=bgi_data,
+            blocked=blocked,
+            summary=(
+                f"BLOCKED by BGI Trident (score={score:.3f})" if blocked else f"Payment link created (BGI: {decision}, score={score:.3f})"
             ),
         )
 
     async def handle_dispute_webhook(
         self,
-        payment_id:  str,
-        dispute_id:  str,
+        payment_id: str,
+        dispute_id: str,
         merchant_id: str,
-        payer_id:    str,
-        amount:      float,
-        reason:      str = "customer_dispute",
+        payer_id: str,
+        amount: float,
+        reason: str = "customer_dispute",
     ) -> RiskExecutionResult:
         """Handle payment.dispute.created webhook -- auto-generate evidence."""
         from bgi_trident.agents.razorpay import RazorpayFraudAgent
+
         agent = RazorpayFraudAgent(self._razorpay, self._bgi)
         result = await agent.generate_dispute_evidence(
             payment_id=payment_id,
@@ -136,16 +135,13 @@ class PaymentRiskCoordinator:
             reason=reason,
         )
         return RiskExecutionResult(
-            operation      = "generate_dispute_evidence",
-            decision       = "ALLOW",
-            ensemble_score = 0.0,
-            razorpay_result= result,
-            bgi_assessment = result.data.get("bgi_evidence", {}),
-            blocked        = False,
-            summary        = (
-                f"Dispute evidence generated. "
-                f"Strength: {result.data.get('bgi_evidence', {}).get('evidence_strength', 'N/A')}"
-            ),
+            operation="generate_dispute_evidence",
+            decision="ALLOW",
+            ensemble_score=0.0,
+            razorpay_result=result,
+            bgi_assessment=result.data.get("bgi_evidence", {}),
+            blocked=False,
+            summary=(f"Dispute evidence generated. Strength: {result.data.get('bgi_evidence', {}).get('evidence_strength', 'N/A')}"),
         )
 
     async def run_merchant_ring_check(
@@ -153,37 +149,40 @@ class PaymentRiskCoordinator:
         merchant_id: str,
     ) -> RiskExecutionResult:
         """Run BGI ring analysis -- read-only, no Razorpay call."""
-        result = await self._bgi.call_tool("detect_merchant_ring", {
-            "merchant_id": merchant_id,
-            "min_shared_payers": 3,
-        })
+        result = await self._bgi.call_tool(
+            "detect_merchant_ring",
+            {
+                "merchant_id": merchant_id,
+                "min_shared_payers": 3,
+            },
+        )
         return RiskExecutionResult(
-            operation      = "detect_merchant_ring",
-            decision       = "REVIEW" if result.success and result.data.get("ring_partners") else "ALLOW",
-            ensemble_score = 0.0,
-            razorpay_result= None,
-            bgi_assessment = result.data,
-            blocked        = False,
-            summary        = result.data.get("summary", "Ring analysis complete"),
+            operation="detect_merchant_ring",
+            decision="REVIEW" if result.success and result.data.get("ring_partners") else "ALLOW",
+            ensemble_score=0.0,
+            razorpay_result=None,
+            bgi_assessment=result.data,
+            blocked=False,
+            summary=result.data.get("summary", "Ring analysis complete"),
         )
 
     def _log_audit(
         self,
-        operation:   str,
+        operation: str,
         merchant_id: str,
-        payer_id:    str,
-        amount:      float,
-        bgi_data:    dict,
+        payer_id: str,
+        amount: float,
+        bgi_data: dict,
     ) -> None:
         if self._session is None:
             return
         entry = {
-            "operation":   operation,
+            "operation": operation,
             "merchant_id": merchant_id,
-            "payer_id":    payer_id,
-            "amount":      amount,
-            "decision":    bgi_data.get("decision", "N/A"),
-            "score":       bgi_data.get("ensemble_score", 0.0),
+            "payer_id": payer_id,
+            "amount": amount,
+            "decision": bgi_data.get("decision", "N/A"),
+            "score": bgi_data.get("ensemble_score", 0.0),
         }
         self._session.audit_log.append(entry)
         if bgi_data.get("payment_id"):

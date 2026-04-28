@@ -8,7 +8,6 @@ from test_ensemble.py.
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 
 def _make_payment_data():
@@ -16,50 +15,58 @@ def _make_payment_data():
     from bgi_trident.graph.payment_builder import PaymentGraphBuilder, PaymentInteractionData
 
     # 5 merchants share the same bank account
-    merchants = pd.DataFrame({
-        "merchant_id":  [f"mrc_{i:05d}" for i in range(10)],
-        "name":         [f"Merchant {i}" for i in range(10)],
-        "category":     ["retail"] * 10,
-        "bank_account": [f"BANK_{i}" for i in range(5)] + ["SHARED_BANK"] * 5,
-        "fraud_ring":   [None] * 5 + ["RING_B"] * 5,
-        "created_at":   ["2024-01-01"] * 10,
-    })
-    payers = pd.DataFrame({
-        "payer_id":   [f"pay_{i:05d}" for i in range(30)],
-        "email":      [f"u{i}@test.com" for i in range(30)],
-        "phone":      [f"98{i:08d}" for i in range(30)],
-        "device_id":  [f"dev_{i:03d}" for i in range(30)],
-        "ip":         [f"10.0.0.{i}" for i in range(30)],
-        "fraud_ring": [None] * 30,
-    })
+    merchants = pd.DataFrame(
+        {
+            "merchant_id": [f"mrc_{i:05d}" for i in range(10)],
+            "name": [f"Merchant {i}" for i in range(10)],
+            "category": ["retail"] * 10,
+            "bank_account": [f"BANK_{i}" for i in range(5)] + ["SHARED_BANK"] * 5,
+            "fraud_ring": [None] * 5 + ["RING_B"] * 5,
+            "created_at": ["2024-01-01"] * 10,
+        }
+    )
+    payers = pd.DataFrame(
+        {
+            "payer_id": [f"pay_{i:05d}" for i in range(30)],
+            "email": [f"u{i}@test.com" for i in range(30)],
+            "phone": [f"98{i:08d}" for i in range(30)],
+            "device_id": [f"dev_{i:03d}" for i in range(30)],
+            "ip": [f"10.0.0.{i}" for i in range(30)],
+            "fraud_ring": [None] * 30,
+        }
+    )
     # Ring B: 7 payers each transact with 4 of the 5 shared-bank merchants
     rows = []
     for p in range(7):
         for m in range(5, 10):
-            rows.append({
-                "payment_id":  f"ring_{p}_{m}",
-                "merchant_id": f"mrc_{m:05d}",
-                "payer_id":    f"pay_{p:05d}",
-                "amount":      8000.0,
-                "status":      "captured",
-                "method":      "upi",
-                "device_id":   f"dev_{p:03d}",
-                "created_at":  "2024-10-10T10:00:00",
-                "fraud_label": 1,
-            })
+            rows.append(
+                {
+                    "payment_id": f"ring_{p}_{m}",
+                    "merchant_id": f"mrc_{m:05d}",
+                    "payer_id": f"pay_{p:05d}",
+                    "amount": 8000.0,
+                    "status": "captured",
+                    "method": "upi",
+                    "device_id": f"dev_{p:03d}",
+                    "created_at": "2024-10-10T10:00:00",
+                    "fraud_label": 1,
+                }
+            )
     # Clean transactions
     for i in range(40):
-        rows.append({
-            "payment_id":  f"clean_{i}",
-            "merchant_id": f"mrc_{i % 5:05d}",
-            "payer_id":    f"pay_{10 + i % 20:05d}",
-            "amount":      float(500 + i * 50),
-            "status":      "captured",
-            "method":      "upi",
-            "device_id":   f"dev_{10 + i % 20:03d}",
-            "created_at":  "2024-10-12T10:00:00",
-            "fraud_label": 0,
-        })
+        rows.append(
+            {
+                "payment_id": f"clean_{i}",
+                "merchant_id": f"mrc_{i % 5:05d}",
+                "payer_id": f"pay_{10 + i % 20:05d}",
+                "amount": float(500 + i * 50),
+                "status": "captured",
+                "method": "upi",
+                "device_id": f"dev_{10 + i % 20:03d}",
+                "created_at": "2024-10-12T10:00:00",
+                "fraud_label": 0,
+            }
+        )
 
     data = PaymentInteractionData(
         transactions=pd.DataFrame(rows),
@@ -71,15 +78,18 @@ def _make_payment_data():
 
 def test_ring_b_merchant_has_high_graph_score():
     """Ring B merchants (shared bank) should score high on Prong 2."""
-    from bgi_trident.mcp.bgi_risk_engine import _graph_score, _detect_rings
+    from bgi_trident.mcp.bgi_risk_engine import _graph_score
 
     builder = _make_payment_data()
 
     # Patch the builder's data accessor
     class FakeEngine:
-        def __init__(self, b): self._builder = b
+        def __init__(self, b):
+            self._builder = b
+
         @property
-        def data(self): return b.data
+        def data(self):
+            return b.data
 
     b = builder  # PaymentGraphBuilder
 
@@ -113,6 +123,6 @@ def test_xgboost_features_include_fraud_labels():
     """XGBoost feature DataFrame should include fraud_label column for Ring B pairs."""
     builder = _make_payment_data()
     features = builder.get_xgboost_features()
-    assert "refund_rate"  in features.columns
-    assert "failed_rate"  in features.columns
-    assert len(features)  > 0
+    assert "refund_rate" in features.columns
+    assert "failed_rate" in features.columns
+    assert len(features) > 0

@@ -42,21 +42,21 @@ class RazorpayMCPServer(MCPServer):
 
     def __init__(
         self,
-        key_id:     str | None = None,
+        key_id: str | None = None,
         key_secret: str | None = None,
-        base_url:   str        = RAZORPAY_MCP_URL,
-        timeout:    float      = 30.0,
+        base_url: str = RAZORPAY_MCP_URL,
+        timeout: float = 30.0,
     ) -> None:
-        self._key_id     = key_id     or os.getenv("RAZORPAY_KEY_ID",     "")
+        self._key_id = key_id or os.getenv("RAZORPAY_KEY_ID", "")
         self._key_secret = key_secret or os.getenv("RAZORPAY_KEY_SECRET", "")
-        self._base_url   = base_url
-        self._timeout    = timeout
+        self._base_url = base_url
+        self._timeout = timeout
         self._client: httpx.AsyncClient | None = None
 
     async def connect(self) -> None:
         headers = {
             "Authorization": _auth_header(self._key_id, self._key_secret),
-            "Content-Type":  "application/json",
+            "Content-Type": "application/json",
         }
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
@@ -107,16 +107,27 @@ class RazorpayMCPServer(MCPServer):
         """35+ Razorpay tools. Subset most relevant to fraud + risk workflows."""
         return [
             # Payments
-            "fetch_payment", "capture_payment", "update_payment", "list_payments",
+            "fetch_payment",
+            "capture_payment",
+            "update_payment",
+            "list_payments",
             # Orders
-            "create_order", "fetch_order", "update_order",
+            "create_order",
+            "fetch_order",
+            "update_order",
             # Payment links
-            "create_payment_link", "create_upi_payment_link",
-            "send_payment_link", "fetch_payment_link",
+            "create_payment_link",
+            "create_upi_payment_link",
+            "send_payment_link",
+            "fetch_payment_link",
             # Refunds
-            "create_refund", "fetch_refund", "list_refunds",
+            "create_refund",
+            "fetch_refund",
+            "list_refunds",
             # Settlements
-            "fetch_settlement", "list_settlements",
+            "fetch_settlement",
+            "list_settlements",
             # Disputes
-            "fetch_dispute", "list_disputes",
+            "fetch_dispute",
+            "list_disputes",
         ]

@@ -14,7 +14,6 @@ TridentCoordinator treats food/instamart/dineout agents.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -37,7 +36,7 @@ class RazorpayFraudAgent(BaseAgent):
     def __init__(
         self,
         razorpay_server: MCPServer,
-        bgi_server:      MCPServer,
+        bgi_server: MCPServer,
     ) -> None:
         super().__init__(razorpay_server)
         self.bgi_server = bgi_server
@@ -59,10 +58,10 @@ class RazorpayFraudAgent(BaseAgent):
 
     async def execute_order(self, **kwargs: Any) -> MCPToolResult:
         """Capture a payment -- always gated through BGI risk assessment."""
-        payment_id  = kwargs.get("payment_id",  "")
+        payment_id = kwargs.get("payment_id", "")
         merchant_id = kwargs.get("merchant_id", "")
-        payer_id    = kwargs.get("payer_id",    "")
-        amount      = kwargs.get("amount",      0.0)
+        payer_id = kwargs.get("payer_id", "")
+        amount = kwargs.get("amount", 0.0)
 
         risk = await self._assess_risk(payment_id, merchant_id, payer_id, amount)
         if not risk.success:
@@ -80,7 +79,8 @@ class RazorpayFraudAgent(BaseAgent):
         if decision == "REVIEW":
             logger.warning(
                 "BGI Trident REVIEW for payment %s (score=%s). Proceeding with flag.",
-                payment_id, risk.data.get("ensemble_score"),
+                payment_id,
+                risk.data.get("ensemble_score"),
             )
 
         return await self.server.call_tool("capture_payment", kwargs)
@@ -90,8 +90,8 @@ class RazorpayFraudAgent(BaseAgent):
     async def create_payment_link(
         self,
         merchant_id: str,
-        payer_id:    str,
-        amount:      float,
+        payer_id: str,
+        amount: float,
         description: str = "",
         **kwargs: Any,
     ) -> MCPToolResult:
@@ -112,48 +112,57 @@ class RazorpayFraudAgent(BaseAgent):
                 ),
             )
 
-        return await self.server.call_tool("create_payment_link", {
-            "amount":      int(amount * 100),  # Razorpay expects paise
-            "currency":    "INR",
-            "description": description,
-            **kwargs,
-        })
+        return await self.server.call_tool(
+            "create_payment_link",
+            {
+                "amount": int(amount * 100),  # Razorpay expects paise
+                "currency": "INR",
+                "description": description,
+                **kwargs,
+            },
+        )
 
     async def generate_dispute_evidence(
         self,
-        payment_id:  str,
-        dispute_id:  str,
+        payment_id: str,
+        dispute_id: str,
         merchant_id: str,
-        payer_id:    str,
-        amount:      float,
-        reason:      str = "customer_dispute",
+        payer_id: str,
+        amount: float,
+        reason: str = "customer_dispute",
     ) -> MCPToolResult:
         """Call BGI to auto-generate dispute evidence, then attach to Razorpay."""
         # Step 1: BGI generates evidence
-        evidence = await self.bgi_server.call_tool("generate_dispute_evidence", {
-            "payment_id":  payment_id,
-            "dispute_id":  dispute_id,
-            "merchant_id": merchant_id,
-            "payer_id":    payer_id,
-            "amount":      amount,
-            "reason":      reason,
-        })
+        evidence = await self.bgi_server.call_tool(
+            "generate_dispute_evidence",
+            {
+                "payment_id": payment_id,
+                "dispute_id": dispute_id,
+                "merchant_id": merchant_id,
+                "payer_id": payer_id,
+                "amount": amount,
+                "reason": reason,
+            },
+        )
 
         if not evidence.success:
             return evidence
 
         # Step 2: Fetch the dispute from Razorpay to confirm it exists
-        dispute = await self.server.call_tool("fetch_dispute", {
-            "dispute_id": dispute_id,
-            "payment_id": payment_id,
-            "amount":     amount,
-        })
+        dispute = await self.server.call_tool(
+            "fetch_dispute",
+            {
+                "dispute_id": dispute_id,
+                "payment_id": payment_id,
+                "amount": amount,
+            },
+        )
 
         return MCPToolResult(
             tool_name="generate_dispute_evidence",
             success=True,
             data={
-                "bgi_evidence":    evidence.data,
+                "bgi_evidence": evidence.data,
                 "razorpay_dispute": dispute.data,
                 "ready_to_submit": evidence.data.get("evidence_strength") in ("STRONG", "MODERATE"),
             },
@@ -161,35 +170,44 @@ class RazorpayFraudAgent(BaseAgent):
 
     async def detect_merchant_ring(
         self,
-        merchant_id:       str,
+        merchant_id: str,
         min_shared_payers: int = 3,
     ) -> MCPToolResult:
         """Delegate ring analysis to BGI server directly."""
-        return await self.bgi_server.call_tool("detect_merchant_ring", {
-            "merchant_id":       merchant_id,
-            "min_shared_payers": min_shared_payers,
-        })
+        return await self.bgi_server.call_tool(
+            "detect_merchant_ring",
+            {
+                "merchant_id": merchant_id,
+                "min_shared_payers": min_shared_payers,
+            },
+        )
 
     # ── Private ───────────────────────────────────────────────────────────────
 
     async def _assess_risk(
         self,
-        payment_id:  str,
+        payment_id: str,
         merchant_id: str,
-        payer_id:    str,
-        amount:      float,
+        payer_id: str,
+        amount: float,
     ) -> MCPToolResult:
         """Call BGI assess_payment_risk and return result."""
         logger.info(
             "BGI risk assessment: payment=%s merchant=%s payer=%s amount=%.2f",
-            payment_id, merchant_id, payer_id, amount,
+            payment_id,
+            merchant_id,
+            payer_id,
+            amount,
         )
-        return await self.bgi_server.call_tool("assess_payment_risk", {
-            "payment_id":  payment_id,
-            "merchant_id": merchant_id,
-            "payer_id":    payer_id,
-            "amount":      amount,
-        })
+        return await self.bgi_server.call_tool(
+            "assess_payment_risk",
+            {
+                "payment_id": payment_id,
+                "merchant_id": merchant_id,
+                "payer_id": payer_id,
+                "amount": amount,
+            },
+        )
 
     async def connect(self) -> None:
         await self.server.connect()

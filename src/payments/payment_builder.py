@@ -21,25 +21,28 @@ import pandas as pd
 
 try:
     import torch
+
     _TORCH_AVAILABLE = True
 except (ImportError, OSError):
     _TORCH_AVAILABLE = False
+
     # Fallback: represent tensors as numpy arrays for non-GNN paths
     class _TorchStub:
         @staticmethod
         def tensor(data, dtype=None):
             return np.array(data)
+
         @staticmethod
         def zeros(*shape):
             return np.zeros(shape)
-        long   = None
-        float32= None
+
+        long = None
+        float32 = None
+
     torch = _TorchStub()  # type: ignore
 
 from bgi_trident.graph.schema_payments import (
-    PAYMENT_EDGE_REGISTRY,
     PAYMENT_NODE_FEATURES,
-    PaymentEdgeType,
     PaymentNodeType,
 )
 
@@ -51,8 +54,8 @@ class PaymentInteractionData:
     """Raw payment data loaded from CSVs."""
 
     transactions: pd.DataFrame  # payment_id, merchant_id, payer_id, amount, status, method, created_at, device_id, ip, fraud_label
-    merchants:    pd.DataFrame  # merchant_id, name, category, bank_account, created_at
-    payers:       pd.DataFrame  # payer_id, email, phone, device_id, ip
+    merchants: pd.DataFrame  # merchant_id, name, category, bank_account, created_at
+    payers: pd.DataFrame  # payer_id, email, phone, device_id, ip
 
 
 class PaymentGraphBuilder:
@@ -70,10 +73,10 @@ class PaymentGraphBuilder:
         self._edge_weights: dict[tuple[str, str, str], torch.Tensor] = {}
 
         # NetworkX-style adjacency for fraud logic (not for tensor export)
-        self._merchant_txns:   dict[str, list[dict]] = defaultdict(list)
-        self._payer_txns:      dict[str, list[dict]] = defaultdict(list)
-        self._bank_merchants:  dict[str, set[str]]   = defaultdict(set)
-        self._device_payers:   dict[str, set[str]]   = defaultdict(set)
+        self._merchant_txns: dict[str, list[dict]] = defaultdict(list)
+        self._payer_txns: dict[str, list[dict]] = defaultdict(list)
+        self._bank_merchants: dict[str, set[str]] = defaultdict(set)
+        self._device_payers: dict[str, set[str]] = defaultdict(set)
 
     def build(self) -> PaymentGraphBuilder:
         """Full build pipeline."""
@@ -96,12 +99,8 @@ class PaymentGraphBuilder:
     # ── Node maps ─────────────────────────────────────────────────────────────
 
     def _build_node_maps(self) -> None:
-        self._node_maps[PaymentNodeType.MERCHANT] = {
-            mid: idx for idx, mid in enumerate(self.data.merchants["merchant_id"].unique())
-        }
-        self._node_maps[PaymentNodeType.PAYER] = {
-            pid: idx for idx, pid in enumerate(self.data.payers["payer_id"].unique())
-        }
+        self._node_maps[PaymentNodeType.MERCHANT] = {mid: idx for idx, mid in enumerate(self.data.merchants["merchant_id"].unique())}
+        self._node_maps[PaymentNodeType.PAYER] = {pid: idx for idx, pid in enumerate(self.data.payers["payer_id"].unique())}
         devices = self.data.payers["device_id"].dropna().unique()
         self._node_maps[PaymentNodeType.DEVICE] = {d: i for i, d in enumerate(devices)}
 
@@ -130,14 +129,14 @@ class PaymentGraphBuilder:
     # ── Node features ─────────────────────────────────────────────────────────
 
     def _build_node_features(self) -> None:
-        self._node_features["merchant"]     = self._merchant_features()
-        self._node_features["payer"]        = self._payer_features()
-        self._node_features["device"]       = self._device_features()
+        self._node_features["merchant"] = self._merchant_features()
+        self._node_features["payer"] = self._payer_features()
+        self._node_features["device"] = self._device_features()
         self._node_features["bank_account"] = self._bank_features()
-        self._node_features["ip_address"]   = self._ip_features()
+        self._node_features["ip_address"] = self._ip_features()
 
     def _merchant_features(self) -> torch.Tensor:
-        n   = len(self._node_maps[PaymentNodeType.MERCHANT])
+        n = len(self._node_maps[PaymentNodeType.MERCHANT])
         dim = len(PAYMENT_NODE_FEATURES[PaymentNodeType.MERCHANT].feature_names)
         feats = np.zeros((n, dim), dtype=np.float32)
         for _, row in self.data.merchants.iterrows():
@@ -147,13 +146,13 @@ class PaymentGraphBuilder:
             txns = self._merchant_txns[row["merchant_id"]]
             if txns:
                 refunded = sum(1 for t in txns if t.get("status") == "refunded")
-                feats[idx, 1] = refunded / len(txns)           # refund_rate
-                feats[idx, 2] = np.mean([t["amount"] for t in txns])   # avg_txn_amount
-                feats[idx, 3] = len(txns)                        # txn_velocity proxy
+                feats[idx, 1] = refunded / len(txns)  # refund_rate
+                feats[idx, 2] = np.mean([t["amount"] for t in txns])  # avg_txn_amount
+                feats[idx, 3] = len(txns)  # txn_velocity proxy
         return torch.tensor(feats)
 
     def _payer_features(self) -> torch.Tensor:
-        n   = len(self._node_maps[PaymentNodeType.PAYER])
+        n = len(self._node_maps[PaymentNodeType.PAYER])
         dim = len(PAYMENT_NODE_FEATURES[PaymentNodeType.PAYER].feature_names)
         feats = np.zeros((n, dim), dtype=np.float32)
         for _, row in self.data.payers.iterrows():
@@ -163,15 +162,15 @@ class PaymentGraphBuilder:
             txns = self._payer_txns[row["payer_id"]]
             if txns:
                 failed = sum(1 for t in txns if t.get("status") == "failed")
-                micro  = sum(1 for t in txns if t.get("amount", 0) < 100)
-                feats[idx, 1] = len(txns)                              # velocity proxy
+                micro = sum(1 for t in txns if t.get("amount", 0) < 100)
+                feats[idx, 1] = len(txns)  # velocity proxy
                 feats[idx, 3] = np.mean([t["amount"] for t in txns])  # avg_amount
-                feats[idx, 4] = failed / len(txns)                     # failed_rate
-                feats[idx, 5] = micro  / len(txns)                     # micro_txn_ratio
+                feats[idx, 4] = failed / len(txns)  # failed_rate
+                feats[idx, 5] = micro / len(txns)  # micro_txn_ratio
         return torch.tensor(feats)
 
     def _device_features(self) -> torch.Tensor:
-        n   = len(self._node_maps[PaymentNodeType.DEVICE])
+        n = len(self._node_maps[PaymentNodeType.DEVICE])
         dim = len(PAYMENT_NODE_FEATURES[PaymentNodeType.DEVICE].feature_names)
         feats = np.zeros((n, dim), dtype=np.float32)
         for dev_id, payer_set in self._device_payers.items():
@@ -181,7 +180,7 @@ class PaymentGraphBuilder:
         return torch.tensor(feats)
 
     def _bank_features(self) -> torch.Tensor:
-        n   = len(self._node_maps[PaymentNodeType.BANK_ACCOUNT])
+        n = len(self._node_maps[PaymentNodeType.BANK_ACCOUNT])
         dim = len(PAYMENT_NODE_FEATURES[PaymentNodeType.BANK_ACCOUNT].feature_names)
         feats = np.zeros((n, dim), dtype=np.float32)
         for bank_id, merchant_set in self._bank_merchants.items():
@@ -191,7 +190,7 @@ class PaymentGraphBuilder:
         return torch.tensor(feats)
 
     def _ip_features(self) -> torch.Tensor:
-        n   = len(self._node_maps[PaymentNodeType.IP_ADDRESS])
+        n = len(self._node_maps[PaymentNodeType.IP_ADDRESS])
         dim = len(PAYMENT_NODE_FEATURES[PaymentNodeType.IP_ADDRESS].feature_names)
         return torch.zeros(n, dim)
 
@@ -200,8 +199,7 @@ class PaymentGraphBuilder:
     def _build_paid_to_edges(self) -> None:
         """Payer -> Merchant: PAID_TO (aggregated per payer-merchant pair)."""
         agg = (
-            self.data.transactions
-            .groupby(["payer_id", "merchant_id"])
+            self.data.transactions.groupby(["payer_id", "merchant_id"])
             .agg(
                 txn_count=("payment_id", "size"),
                 total_amount=("amount", "sum"),
@@ -211,15 +209,16 @@ class PaymentGraphBuilder:
         )
         src, dst, weights = [], [], []
         for _, row in agg.iterrows():
-            s = self._node_maps[PaymentNodeType.PAYER].get(row["payer_id"],    -1)
+            s = self._node_maps[PaymentNodeType.PAYER].get(row["payer_id"], -1)
             d = self._node_maps[PaymentNodeType.MERCHANT].get(row["merchant_id"], -1)
             if s >= 0 and d >= 0:
-                src.append(s); dst.append(d)
+                src.append(s)
+                dst.append(d)
                 weights.append(row["txn_count"])
         if src:
             key = ("payer", "paid_to", "merchant")
             self._edge_indices[key] = torch.tensor([src, dst], dtype=torch.long)
-            self._edge_weights[key]  = torch.tensor(weights,   dtype=torch.float32)
+            self._edge_weights[key] = torch.tensor(weights, dtype=torch.float32)
 
     def _build_bank_edges(self) -> None:
         """Merchant -> BankAccount: SHARES_BANK."""
@@ -228,7 +227,8 @@ class PaymentGraphBuilder:
             s = self._node_maps[PaymentNodeType.MERCHANT].get(row["merchant_id"], -1)
             d = self._node_maps[PaymentNodeType.BANK_ACCOUNT].get(row["bank_account"], -1)
             if s >= 0 and d >= 0:
-                src.append(s); dst.append(d)
+                src.append(s)
+                dst.append(d)
         if src:
             key = ("merchant", "shares_bank", "bank_account")
             self._edge_indices[key] = torch.tensor([src, dst], dtype=torch.long)
@@ -236,7 +236,7 @@ class PaymentGraphBuilder:
     def _build_device_ip_edges(self) -> None:
         """Payer -> Device: SHARES_DEVICE. Payer -> IP: SAME_IP."""
         dev_src, dev_dst = [], []
-        ip_src,  ip_dst  = [], []
+        ip_src, ip_dst = [], []
         for _, row in self.data.payers.iterrows():
             s = self._node_maps[PaymentNodeType.PAYER].get(row["payer_id"], -1)
             if s < 0:
@@ -244,11 +244,13 @@ class PaymentGraphBuilder:
             if pd.notna(row.get("device_id")):
                 d = self._node_maps[PaymentNodeType.DEVICE].get(row["device_id"], -1)
                 if d >= 0:
-                    dev_src.append(s); dev_dst.append(d)
+                    dev_src.append(s)
+                    dev_dst.append(d)
             if pd.notna(row.get("ip")):
                 i = self._node_maps[PaymentNodeType.IP_ADDRESS].get(row["ip"], -1)
                 if i >= 0:
-                    ip_src.append(s); ip_dst.append(i)
+                    ip_src.append(s)
+                    ip_dst.append(i)
         if dev_src:
             self._edge_indices[("payer", "shares_device", "device")] = torch.tensor([dev_src, dev_dst], dtype=torch.long)
         if ip_src:
@@ -280,13 +282,14 @@ class PaymentGraphBuilder:
             s = self._node_maps[PaymentNodeType.MERCHANT].get(m1, -1)
             d = self._node_maps[PaymentNodeType.MERCHANT].get(m2, -1)
             if s >= 0 and d >= 0:
-                src.extend([s, d]); dst.extend([d, s])  # undirected
+                src.extend([s, d])
+                dst.extend([d, s])  # undirected
                 weights.extend([cnt, cnt])
 
         if src:
             key = ("merchant", "ring_partner", "merchant")
             self._edge_indices[key] = torch.tensor([src, dst], dtype=torch.long)
-            self._edge_weights[key]  = torch.tensor(weights, dtype=torch.float32)
+            self._edge_weights[key] = torch.tensor(weights, dtype=torch.float32)
 
     def _derive_co_payer_edges(self) -> None:
         """Payer -> Payer: CO_PAYER (same device, different account).
@@ -301,7 +304,8 @@ class PaymentGraphBuilder:
                     s = self._node_maps[PaymentNodeType.PAYER].get(payers[i], -1)
                     d = self._node_maps[PaymentNodeType.PAYER].get(payers[j], -1)
                     if s >= 0 and d >= 0:
-                        src.extend([s, d]); dst.extend([d, s])
+                        src.extend([s, d])
+                        dst.extend([d, s])
         if src:
             key = ("payer", "co_payer", "payer")
             self._edge_indices[key] = torch.tensor([src, dst], dtype=torch.long)
@@ -311,6 +315,7 @@ class PaymentGraphBuilder:
     def to_pyg(self):
         """Export to PyG HeteroData for Prong 1 (structural GNN)."""
         from torch_geometric.data import HeteroData
+
         data = HeteroData()
         for nt, feats in self._node_features.items():
             data[nt].x = feats
@@ -324,6 +329,7 @@ class PaymentGraphBuilder:
     def to_dgl(self):
         """Export to DGL DGLHeteroGraph for Prong 2 (temporal R-GCN)."""
         import dgl
+
         graph_data = {ek: (ei[0], ei[1]) for ek, ei in self._edge_indices.items()}
         if not graph_data:
             raise ValueError("No edges. Cannot build DGL graph.")
@@ -343,30 +349,31 @@ class PaymentGraphBuilder:
         """
         features = []
         agg = (
-            self.data.transactions
-            .groupby(["payer_id", "merchant_id"])
+            self.data.transactions.groupby(["payer_id", "merchant_id"])
             .agg(
-                txn_count       = ("payment_id", "size"),
-                total_amount    = ("amount",     "sum"),
-                avg_amount      = ("amount",     "mean"),
-                refund_count    = ("status",     lambda x: (x == "refunded").sum()),
-                failed_count    = ("status",     lambda x: (x == "failed").sum()),
-                micro_count     = ("amount",     lambda x: (x < 100).sum()),
-                last_txn        = ("created_at", "max"),
+                txn_count=("payment_id", "size"),
+                total_amount=("amount", "sum"),
+                avg_amount=("amount", "mean"),
+                refund_count=("status", lambda x: (x == "refunded").sum()),
+                failed_count=("status", lambda x: (x == "failed").sum()),
+                micro_count=("amount", lambda x: (x < 100).sum()),
+                last_txn=("created_at", "max"),
             )
             .reset_index()
         )
         for _, row in agg.iterrows():
-            features.append({
-                "payer_id":       row["payer_id"],
-                "merchant_id":    row["merchant_id"],
-                "txn_count":      row["txn_count"],
-                "avg_amount":     row["avg_amount"],
-                "refund_rate":    row["refund_count"] / row["txn_count"],
-                "failed_rate":    row["failed_count"] / row["txn_count"],
-                "micro_txn_ratio":row["micro_count"]  / row["txn_count"],
-                "total_amount":   row["total_amount"],
-            })
+            features.append(
+                {
+                    "payer_id": row["payer_id"],
+                    "merchant_id": row["merchant_id"],
+                    "txn_count": row["txn_count"],
+                    "avg_amount": row["avg_amount"],
+                    "refund_rate": row["refund_count"] / row["txn_count"],
+                    "failed_rate": row["failed_count"] / row["txn_count"],
+                    "micro_txn_ratio": row["micro_count"] / row["txn_count"],
+                    "total_amount": row["total_amount"],
+                }
+            )
         return pd.DataFrame(features)
 
     @property
@@ -379,9 +386,9 @@ class PaymentGraphBuilder:
         for (s, r, d), idx in self._edge_indices.items():
             key = f"{s}-{r}->{d}"
             try:
-                result[key] = idx.shape[1]    # torch tensor
+                result[key] = idx.shape[1]  # torch tensor
             except (AttributeError, IndexError):
-                result[key] = int(np.array(idx).shape[-1]) if hasattr(idx, 'shape') else 0
+                result[key] = int(np.array(idx).shape[-1]) if hasattr(idx, "shape") else 0
         return result
 
     # Public accessors for fraud tools

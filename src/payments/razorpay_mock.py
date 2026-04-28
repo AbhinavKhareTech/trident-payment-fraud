@@ -34,15 +34,15 @@ class MockRazorpayMCP(MCPServer):
     """
 
     def __init__(self) -> None:
-        self._merchants:    list[dict] = []
+        self._merchants: list[dict] = []
         self._transactions: list[dict] = []
         self._payment_links: dict[str, dict] = {}
-        self._payments:      dict[str, dict] = {}
-        self._refunds:       dict[str, dict] = {}
+        self._payments: dict[str, dict] = {}
+        self._refunds: dict[str, dict] = {}
 
     async def connect(self) -> None:
         merchants_path = FIXTURES / "razorpay_merchants.json"
-        txns_path      = FIXTURES / "razorpay_transactions.json"
+        txns_path = FIXTURES / "razorpay_transactions.json"
 
         if merchants_path.exists():
             self._merchants = json.loads(merchants_path.read_text())
@@ -56,7 +56,9 @@ class MockRazorpayMCP(MCPServer):
         handler = getattr(self, f"_handle_{tool_name}", None)
         if handler is None:
             return MCPToolResult(
-                tool_name=tool_name, success=False, data={},
+                tool_name=tool_name,
+                success=False,
+                data={},
                 error=f"Unknown tool: {tool_name}",
             )
         return await handler(params)
@@ -64,12 +66,12 @@ class MockRazorpayMCP(MCPServer):
     async def _handle_create_payment_link(self, params: dict) -> MCPToolResult:
         link_id = _random_id("plink")
         link = {
-            "id":          link_id,
-            "amount":      params.get("amount", 0),
-            "currency":    params.get("currency", "INR"),
+            "id": link_id,
+            "amount": params.get("amount", 0),
+            "currency": params.get("currency", "INR"),
             "description": params.get("description", ""),
-            "short_url":   f"https://rzp.io/i/{link_id[:8]}",
-            "status":      "created",
+            "short_url": f"https://rzp.io/i/{link_id[:8]}",
+            "status": "created",
         }
         self._payment_links[link_id] = link
         return MCPToolResult(tool_name="create_payment_link", success=True, data=link)
@@ -79,12 +81,15 @@ class MockRazorpayMCP(MCPServer):
 
     async def _handle_capture_payment(self, params: dict) -> MCPToolResult:
         payment_id = params.get("payment_id", _random_id("pay"))
-        payment = self._payments.get(payment_id, {
-            "payment_id": payment_id,
-            "amount":     params.get("amount", 0),
-            "status":     "captured",
-            "method":     params.get("method", "upi"),
-        })
+        payment = self._payments.get(
+            payment_id,
+            {
+                "payment_id": payment_id,
+                "amount": params.get("amount", 0),
+                "status": "captured",
+                "method": params.get("method", "upi"),
+            },
+        )
         payment["status"] = "captured"
         self._payments[payment_id] = payment
         return MCPToolResult(tool_name="capture_payment", success=True, data=payment)
@@ -101,11 +106,11 @@ class MockRazorpayMCP(MCPServer):
     async def _handle_create_refund(self, params: dict) -> MCPToolResult:
         refund_id = _random_id("rfnd")
         refund = {
-            "id":         refund_id,
+            "id": refund_id,
             "payment_id": params.get("payment_id"),
-            "amount":     params.get("amount", 0),
-            "status":     "processed",
-            "speed":      params.get("speed", "normal"),
+            "amount": params.get("amount", 0),
+            "status": "processed",
+            "speed": params.get("speed", "normal"),
         }
         self._refunds[refund_id] = refund
         return MCPToolResult(tool_name="create_refund", success=True, data=refund)
@@ -117,11 +122,11 @@ class MockRazorpayMCP(MCPServer):
             tool_name="fetch_dispute",
             success=True,
             data={
-                "id":         dispute_id,
+                "id": dispute_id,
                 "payment_id": params.get("payment_id", ""),
-                "amount":     params.get("amount", 0),
-                "reason":     "customer_dispute",
-                "status":     "open",
+                "amount": params.get("amount", 0),
+                "reason": "customer_dispute",
+                "status": "open",
             },
         )
 
@@ -138,7 +143,11 @@ class MockRazorpayMCP(MCPServer):
 
     def available_tools(self) -> list[str]:
         return [
-            "create_payment_link", "create_upi_payment_link",
-            "capture_payment", "fetch_payment", "list_payments",
-            "create_refund", "fetch_dispute",
+            "create_payment_link",
+            "create_upi_payment_link",
+            "capture_payment",
+            "fetch_payment",
+            "list_payments",
+            "create_refund",
+            "fetch_dispute",
         ]
